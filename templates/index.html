@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Video Streaming</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Video Streaming with Flask and Socket.IO</h1>
+    <video id="localVideo" autoplay playsinline controls></video>
+    <video id="remoteVideo" autoplay playsinline controls></video>
+    <script>
+      var socket = io();
+      console.log("🚀 ~ file: index.html:13 ~ socket:", socket);
+
+      socket.on("connect", function () {
+        console.log("Connected to server");
+      });
+
+      socket.on("message", function (data) {
+        console.log(data);
+      });
+
+      socket.on("video_offer", function (offer) {
+        handleVideoOffer(offer);
+      });
+
+      socket.on("video_answer", function (answer) {
+        handleVideoAnswer(answer);
+      });
+
+      socket.on("new_ice_candidate", function (candidate) {
+        console.log("candidate", candidate);
+        handleNewICECandidate(candidate);
+      });
+
+      let localStream;
+      let peerConnection;
+
+      const constraints = {
+        video: true,
+        audio: true,
+      };
+
+      const localVideo = document.getElementById("localVideo");
+      const remoteVideo = document.getElementById("remoteVideo");
+
+      async function startLocalStream() {
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia(constraints);
+          localVideo.srcObject = localStream;
+          setupPeerConnection();
+        } catch (err) {
+          console.error("Error accessing media devices.", err);
+        }
+      }
+
+      function setupPeerConnection() {
+        const configuration = {
+          iceServers: [
+            {
+              urls: "stun:stun.l.google.com:19302",
+            },
+          ],
+        };
+
+        peerConnection = new RTCPeerConnection(configuration);
+        console.log(
+          "🚀 ~ file: index.html:66 ~ setupPeerConnection ~ peerConnection:",
+          peerConnection
+        );
+        peerConnection.onicecandidate = handleICECandidateEvent;
+        peerConnection.ontrack = handleTrackEvent;
+        peerConnection.onnegotiationneeded = handleNegotiationNeededEvent;
+
+        localStream
+          .getTracks()
+          .forEach((track) => peerConnection.addTrack(track, localStream));
+      }
+
+      async function handleNegotiationNeededEvent() {
+        try {
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+          socket.emit("video_offer", peerConnection.localDescription);
+        } catch (err) {
+          console.error("Error during negotiation.", err);
+        }
+      }
+
+      async function handleVideoOffer(offer) {
+        if (!peerConnection) {
+          setupPeerConnection();
+        }
+
+        const desc = new RTCSessionDescription(offer);
+        await peerConnection.setRemoteDescription(desc);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit("video_answer", peerConnection.localDescription);
+      }
+
+      async function handleVideoAnswer(answer) {
+        const desc = new RTCSessionDescription(answer);
+        await peerConnection.setRemoteDescription(desc);
+      }
+
+      function handleICECandidateEvent(event) {
+        if (event.candidate) {
+          socket.emit("new_ice_candidate", event.candidate);
+        }
+      }
+
+      async function handleNewICECandidate(candidate) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.error("Error adding received ICE candidate.", err);
+        }
+      }
+
+      function handleTrackEvent(event) {
+        remoteVideo.srcObject = event.streams[0];
+      }
+
+      startLocalStream();
+    </script>
+  </body>
+</html>
