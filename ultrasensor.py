@@ -38,14 +38,18 @@ def distance():
     distance = (TimeElapsed * 34300) / 2
  
     return distance
+def buzzerNoti(dist):
+    if dist < 50 :
+        buzzerBip = 1
+    else: buzzerBip = 0
  
-if __name__ == '__main__':
+if __name__ == '__main__'
     try:
         while True:
             dist = distance()
-            print ("Measured Distance = %.1f cm" % dist)
+            print ("Measured Distance dist = %.1f cm" % dist)
             time.sleep(1)
- 
+
         # Reset by pressing CTRL + C
     except KeyboardInterrupt:
         print("Measurement stopped by User")
